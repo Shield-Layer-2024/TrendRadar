@@ -15,7 +15,7 @@ storage:
   # - local: 本地 SQLite + TXT/HTML 文件
   # - remote: 远程云存储（S3 兼容协议，支持 R2/OSS/COS 等）
   # - auto: 自动选择（GitHub Actions 环境且配置了远程存储则用 remote，否则用 local）
-  backend: "auto"
+  backend: "remote"
 
   # 数据格式选项
   formats:
@@ -33,7 +33,7 @@ storage:
   # 建议将敏感信息配置在 GitHub Secrets 或环境变量中
   remote:
     # 数据保留天数（0 = 不清理远程数据）
-    retention_days: 0
+    retention_days: 7
     # S3 兼容配置
     endpoint_url: ""          # 服务端点（或环境变量 S3_ENDPOINT_URL）
                               # Cloudflare R2: https://<account_id>.r2.cloudflarestorage.com
