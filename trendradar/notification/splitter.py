@@ -514,14 +514,14 @@ def split_content_into_batches(
         current_batch, current_batch_has_content, batches = process_new_titles_section(
             current_batch, current_batch_has_content, batches
         )
-        current_batch, current_batch_has_content, batches = process_stats_section(
-            current_batch, current_batch_has_content, batches
-        )
+        # current_batch, current_batch_has_content, batches = process_stats_section(
+        #     current_batch, current_batch_has_content, batches
+        # )
     else:
         # 默认：热点词汇统计在前，新增热点在后
-        current_batch, current_batch_has_content, batches = process_stats_section(
-            current_batch, current_batch_has_content, batches
-        )
+        # current_batch, current_batch_has_content, batches = process_stats_section(
+        #     current_batch, current_batch_has_content, batches
+        # )
         current_batch, current_batch_has_content, batches = process_new_titles_section(
             current_batch, current_batch_has_content, batches
         )
