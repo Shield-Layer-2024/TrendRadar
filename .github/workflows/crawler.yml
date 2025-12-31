@@ -60,6 +60,7 @@ jobs:
           clean: true
 
       - name: Check Expiration
+        if: false  # 已禁用签到检查 / Expiration check disabled
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
