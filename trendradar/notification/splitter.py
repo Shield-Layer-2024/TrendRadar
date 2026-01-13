@@ -67,24 +67,19 @@ def split_content_into_batches(
     # 限制新闻总数并处理显示模式
     truncated_report_data = report_data.copy()
     
-    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    # 如果不显示统计分组，将 stats 中的新闻转换为完全平铺格式（不分平台）
     if not show_stats_in_push and report_data["stats"]:
-        # 收集所有匹配的新闻，按平台分组
-        all_titles_by_platform = {}
+        # 收集所有匹配的新闻到一个列表（完全平铺，不分组）
+        all_titles = []
         for stat in report_data["stats"]:
             for title_data in stat["titles"]:
-                platform = title_data.get("source", "未知平台")
-                if platform not in all_titles_by_platform:
-                    all_titles_by_platform[platform] = []
-                all_titles_by_platform[platform].append(title_data)
+                all_titles.append(title_data)
         
-        # 转换为 new_titles 格式（平铺显示）
-        flattened_titles = []
-        for platform, titles in all_titles_by_platform.items():
-            flattened_titles.append({
-                "source_name": platform,
-                "titles": titles
-            })
+        # 转换为 new_titles 格式（单个分组，包含所有新闻）
+        flattened_titles = [{
+            "source_name": "匹配的新闻",  # 不显示平台，统一标题
+            "titles": all_titles
+        }]
         
         # 清空 stats，将新闻移到 new_titles 中
         truncated_report_data["stats"] = []
@@ -94,8 +89,7 @@ def split_content_into_batches(
         else:
             truncated_report_data["new_titles"] = flattened_titles
         # 更新总数
-        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
-        truncated_report_data["total_new_count"] = total_flattened + report_data.get("total_new_count", 0)
+        truncated_report_data["total_new_count"] = len(all_titles) + report_data.get("total_new_count", 0)
     
     # 限制新闻总数
     if max_total_news_in_push > 0:
@@ -475,19 +469,24 @@ def split_content_into_batches(
 
         # 逐个处理新增新闻来源
         for source_data in truncated_report_data["new_titles"]:
+            # 判断是否为平铺模式（不分平台）
+            is_flat_mode = source_data['source_name'] == "匹配的新闻"
+            
             source_header = ""
-            if format_type in ("wework", "bark"):
-                source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
-            elif format_type == "telegram":
-                source_header = f"{source_data['source_name']} ({len(source_data['titles'])} 条):\n\n"
-            elif format_type == "ntfy":
-                source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
-            elif format_type == "feishu":
-                source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
-            elif format_type == "dingtalk":
-                source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
-            elif format_type == "slack":
-                source_header = f"*{source_data['source_name']}* ({len(source_data['titles'])} 条):\n\n"
+            # 平铺模式不显示平台分类标题
+            if not is_flat_mode:
+                if format_type in ("wework", "bark"):
+                    source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+                elif format_type == "telegram":
+                    source_header = f"{source_data['source_name']} ({len(source_data['titles'])} 条):\n\n"
+                elif format_type == "ntfy":
+                    source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+                elif format_type == "feishu":
+                    source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+                elif format_type == "dingtalk":
+                    source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+                elif format_type == "slack":
+                    source_header = f"*{source_data['source_name']}* ({len(source_data['titles'])} 条):\n\n"
 
             # 构建第一条新增新闻
             first_news_line = ""
@@ -496,30 +495,33 @@ def split_content_into_batches(
                 title_data_copy = first_title_data.copy()
                 title_data_copy["is_new"] = False
 
+                # 平铺模式显示来源
+                show_source = is_flat_mode
+
                 if format_type in ("wework", "bark"):
                     formatted_title = format_title_for_platform(
-                        "wework", title_data_copy, show_source=False
+                        "wework", title_data_copy, show_source=show_source
                     )
                 elif format_type == "telegram":
                     formatted_title = format_title_for_platform(
-                        "telegram", title_data_copy, show_source=False
+                        "telegram", title_data_copy, show_source=show_source
                     )
                 elif format_type == "feishu":
                     formatted_title = format_title_for_platform(
-                        "feishu", title_data_copy, show_source=False
+                        "feishu", title_data_copy, show_source=show_source
                     )
                 elif format_type == "dingtalk":
                     formatted_title = format_title_for_platform(
-                        "dingtalk", title_data_copy, show_source=False
+                        "dingtalk", title_data_copy, show_source=show_source
                     )
                 elif format_type == "slack":
                     formatted_title = format_title_for_platform(
-                        "slack", title_data_copy, show_source=False
+                        "slack", title_data_copy, show_source=show_source
                     )
                 else:
                     formatted_title = f"{title_data_copy['title']}"
 
-                first_news_line = f"  1. {formatted_title}\n"
+                first_news_line = f"1. {formatted_title}\n" if is_flat_mode else f"  1. {formatted_title}\n"
 
             # 原子性检查：来源标题+第一条新闻
             source_with_first_news = source_header + first_news_line
@@ -545,30 +547,33 @@ def split_content_into_batches(
                 title_data_copy = title_data.copy()
                 title_data_copy["is_new"] = False
 
+                # 平铺模式显示来源
+                show_source = is_flat_mode
+
                 if format_type == "wework":
                     formatted_title = format_title_for_platform(
-                        "wework", title_data_copy, show_source=False
+                        "wework", title_data_copy, show_source=show_source
                     )
                 elif format_type == "telegram":
                     formatted_title = format_title_for_platform(
-                        "telegram", title_data_copy, show_source=False
+                        "telegram", title_data_copy, show_source=show_source
                     )
                 elif format_type == "feishu":
                     formatted_title = format_title_for_platform(
-                        "feishu", title_data_copy, show_source=False
+                        "feishu", title_data_copy, show_source=show_source
                     )
                 elif format_type == "dingtalk":
                     formatted_title = format_title_for_platform(
-                        "dingtalk", title_data_copy, show_source=False
+                        "dingtalk", title_data_copy, show_source=show_source
                     )
                 elif format_type == "slack":
                     formatted_title = format_title_for_platform(
-                        "slack", title_data_copy, show_source=False
+                        "slack", title_data_copy, show_source=show_source
                     )
                 else:
                     formatted_title = f"{title_data_copy['title']}"
 
-                news_line = f"  {j + 1}. {formatted_title}\n"
+                news_line = f"{j + 1}. {formatted_title}\n" if is_flat_mode else f"  {j + 1}. {formatted_title}\n"
 
                 test_content = current_batch + news_line
                 if (

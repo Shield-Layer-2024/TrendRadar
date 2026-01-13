@@ -42,24 +42,19 @@ def render_feishu_content(
     truncated_new_titles = []
     original_total_new_count = report_data.get("total_new_count", 0)
     
-    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    # 如果不显示统计分组，将 stats 中的新闻转换为完全平铺格式（不分平台）
     if not show_stats_in_push and report_data["stats"]:
-        # 收集所有匹配的新闻，按平台分组
-        all_titles_by_platform = {}
+        # 收集所有匹配的新闻到一个列表（完全平铺，不分组）
+        all_titles = []
         for stat in report_data["stats"]:
             for title_data in stat["titles"]:
-                platform = title_data.get("source", "未知平台")
-                if platform not in all_titles_by_platform:
-                    all_titles_by_platform[platform] = []
-                all_titles_by_platform[platform].append(title_data)
+                all_titles.append(title_data)
         
-        # 转换为平铺格式
-        flattened_titles = []
-        for platform, titles in all_titles_by_platform.items():
-            flattened_titles.append({
-                "source_name": platform,
-                "titles": titles
-            })
+        # 转换为平铺格式（单个分组，包含所有新闻）
+        flattened_titles = [{
+            "source_name": "匹配的新闻",  # 不显示平台，统一标题
+            "titles": all_titles
+        }]
         
         # 合并到 new_titles
         if report_data["new_titles"]:
@@ -68,8 +63,7 @@ def render_feishu_content(
             all_new_titles = flattened_titles
         
         # 更新总数
-        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
-        original_total_new_count = total_flattened + report_data.get("total_new_count", 0)
+        original_total_new_count = len(all_titles) + report_data.get("total_new_count", 0)
     else:
         all_new_titles = report_data["new_titles"]
     
@@ -150,18 +144,29 @@ def render_feishu_content(
             f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
         )
 
+        # 统计所有新闻的总序号
+        total_index = 0
         for source_data in truncated_new_titles:
-            new_titles_content += (
-                f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
-            )
+            # 如果是平铺模式（不分平台），不显示平台标题
+            if source_data['source_name'] != "匹配的新闻":
+                new_titles_content += (
+                    f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
+                )
+                local_index_start = 1
+                indent = "  "
+            else:
+                # 平铺模式：不显示平台标题，直接显示新闻
+                local_index_start = total_index + 1
+                indent = ""
 
-            for j, title_data in enumerate(source_data["titles"], 1):
+            for title_data in source_data["titles"]:
+                total_index += 1
                 title_data_copy = title_data.copy()
                 title_data_copy["is_new"] = False
                 formatted_title = format_title_for_platform(
-                    "feishu", title_data_copy, show_source=False
+                    "feishu", title_data_copy, show_source=True  # 平铺模式显示来源
                 )
-                new_titles_content += f"  {j}. {formatted_title}\n"
+                new_titles_content += f"{indent}{total_index}. {formatted_title}\n"
 
             new_titles_content += "\n"
 
@@ -242,24 +247,19 @@ def render_dingtalk_content(
     truncated_new_titles = []
     original_total_new_count = report_data.get("total_new_count", 0)
     
-    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    # 如果不显示统计分组，将 stats 中的新闻转换为完全平铺格式（不分平台）
     if not show_stats_in_push and report_data["stats"]:
-        # 收集所有匹配的新闻，按平台分组
-        all_titles_by_platform = {}
+        # 收集所有匹配的新闻到一个列表（完全平铺，不分组）
+        all_titles = []
         for stat in report_data["stats"]:
             for title_data in stat["titles"]:
-                platform = title_data.get("source", "未知平台")
-                if platform not in all_titles_by_platform:
-                    all_titles_by_platform[platform] = []
-                all_titles_by_platform[platform].append(title_data)
+                all_titles.append(title_data)
         
-        # 转换为平铺格式
-        flattened_titles = []
-        for platform, titles in all_titles_by_platform.items():
-            flattened_titles.append({
-                "source_name": platform,
-                "titles": titles
-            })
+        # 转换为平铺格式（单个分组，包含所有新闻）
+        flattened_titles = [{
+            "source_name": "匹配的新闻",  # 不显示平台，统一标题
+            "titles": all_titles
+        }]
         
         # 合并到 new_titles
         if report_data["new_titles"]:
@@ -268,8 +268,7 @@ def render_dingtalk_content(
             all_new_titles = flattened_titles
         
         # 更新总数
-        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
-        original_total_new_count = total_flattened + report_data.get("total_new_count", 0)
+        original_total_new_count = len(all_titles) + report_data.get("total_new_count", 0)
     else:
         all_new_titles = report_data["new_titles"]
     
@@ -361,16 +360,27 @@ def render_dingtalk_content(
             f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
         )
 
+        # 统计所有新闻的总序号
+        total_index = 0
         for source_data in truncated_new_titles:
-            new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+            # 如果是平铺模式（不分平台），不显示平台标题
+            if source_data['source_name'] != "匹配的新闻":
+                new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
+                local_index_start = 1
+                indent = "  "
+            else:
+                # 平铺模式：不显示平台标题，直接显示新闻
+                local_index_start = total_index + 1
+                indent = ""
 
-            for j, title_data in enumerate(source_data["titles"], 1):
+            for title_data in source_data["titles"]:
+                total_index += 1
                 title_data_copy = title_data.copy()
                 title_data_copy["is_new"] = False
                 formatted_title = format_title_for_platform(
-                    "dingtalk", title_data_copy, show_source=False
+                    "dingtalk", title_data_copy, show_source=True  # 平铺模式显示来源
                 )
-                new_titles_content += f"  {j}. {formatted_title}\n"
+                new_titles_content += f"{indent}{total_index}. {formatted_title}\n"
 
             new_titles_content += "\n"
 
