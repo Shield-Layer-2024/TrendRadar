@@ -67,7 +67,9 @@ def _load_report_config(config_data: Dict) -> Dict:
     # 环境变量覆盖
     sort_by_position_env = _get_env_bool("SORT_BY_POSITION_FIRST")
     reverse_content_env = _get_env_bool("REVERSE_CONTENT_ORDER")
+    show_stats_env = _get_env_bool("SHOW_STATS_IN_PUSH")
     max_news_env = _get_env_int("MAX_NEWS_PER_KEYWORD")
+    max_total_news_env = _get_env_int("MAX_TOTAL_NEWS_IN_PUSH")
 
     return {
         "REPORT_MODE": _get_env_str("REPORT_MODE") or report_config.get("mode", "daily"),
@@ -75,6 +77,8 @@ def _load_report_config(config_data: Dict) -> Dict:
         "SORT_BY_POSITION_FIRST": sort_by_position_env if sort_by_position_env is not None else report_config.get("sort_by_position_first", False),
         "MAX_NEWS_PER_KEYWORD": max_news_env or report_config.get("max_news_per_keyword", 0),
         "REVERSE_CONTENT_ORDER": reverse_content_env if reverse_content_env is not None else report_config.get("reverse_content_order", False),
+        "MAX_TOTAL_NEWS_IN_PUSH": max_total_news_env or report_config.get("max_total_news_in_push", 0),
+        "SHOW_STATS_IN_PUSH": show_stats_env if show_stats_env is not None else report_config.get("show_stats_in_push", True),
     }
 
 

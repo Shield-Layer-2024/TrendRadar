@@ -17,6 +17,8 @@ def render_feishu_content(
     mode: str = "daily",
     separator: str = "---",
     reverse_content_order: bool = False,
+    max_total_news_in_push: int = 0,
+    show_stats_in_push: bool = True,
     get_time_func: Optional[Callable[[], datetime]] = None,
 ) -> str:
     """渲染飞书通知内容
@@ -27,19 +29,60 @@ def render_feishu_content(
         mode: 报告模式 ("daily", "incremental", "current")
         separator: 内容分隔符
         reverse_content_order: 是否反转内容顺序（新增在前）
+        max_total_news_in_push: 推送中最大新闻总数（0=不限制）
+        show_stats_in_push: 是否在推送中展示热点词汇统计
         get_time_func: 获取当前时间的函数（可选，默认使用 datetime.now()）
 
     Returns:
         格式化的飞书消息内容
     """
+    # 限制新闻总数
+    total_news_count = 0
+    truncated_stats = []
+    truncated_new_titles = []
+    
+    if max_total_news_in_push > 0:
+        # 统计并截断 stats 中的新闻
+        if show_stats_in_push and report_data["stats"]:
+            for stat in report_data["stats"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = stat["titles"][:remaining]
+                if truncated_titles:
+                    truncated_stats.append({
+                        "word": stat["word"],
+                        "count": len(truncated_titles),
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+        
+        # 统计并截断 new_titles 中的新闻
+        if report_data["new_titles"]:
+            for source_data in report_data["new_titles"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = source_data["titles"][:remaining]
+                if truncated_titles:
+                    truncated_new_titles.append({
+                        "source_name": source_data["source_name"],
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+    else:
+        # 不限制数量，使用原始数据
+        truncated_stats = report_data["stats"] if show_stats_in_push else []
+        truncated_new_titles = report_data["new_titles"]
+
     # 生成热点词汇统计部分
     stats_content = ""
-    if report_data["stats"]:
+    if show_stats_in_push and truncated_stats:
         stats_content += "📊 **热点词汇统计**\n\n"
 
-        total_count = len(report_data["stats"])
+        total_count = len(truncated_stats)
 
-        for i, stat in enumerate(report_data["stats"]):
+        for i, stat in enumerate(truncated_stats):
             word = stat["word"]
             count = stat["count"]
 
@@ -61,17 +104,21 @@ def render_feishu_content(
                 if j < len(stat["titles"]):
                     stats_content += "\n"
 
-            if i < len(report_data["stats"]) - 1:
+            if i < len(truncated_stats) - 1:
                 stats_content += f"\n{separator}\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
-    if report_data["new_titles"]:
+    if truncated_new_titles:
+        # 计算实际显示的新闻总数
+        actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
+        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
+        
         new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         )
 
-        for source_data in report_data["new_titles"]:
+        for source_data in truncated_new_titles:
             new_titles_content += (
                 f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
             )
@@ -139,6 +186,8 @@ def render_dingtalk_content(
     update_info: Optional[Dict] = None,
     mode: str = "daily",
     reverse_content_order: bool = False,
+    max_total_news_in_push: int = 0,
+    show_stats_in_push: bool = True,
     get_time_func: Optional[Callable[[], datetime]] = None,
 ) -> str:
     """渲染钉钉通知内容
@@ -148,13 +197,54 @@ def render_dingtalk_content(
         update_info: 版本更新信息（可选）
         mode: 报告模式 ("daily", "incremental", "current")
         reverse_content_order: 是否反转内容顺序（新增在前）
+        max_total_news_in_push: 推送中最大新闻总数（0=不限制）
+        show_stats_in_push: 是否在推送中展示热点词汇统计
         get_time_func: 获取当前时间的函数（可选，默认使用 datetime.now()）
 
     Returns:
         格式化的钉钉消息内容
     """
+    # 限制新闻总数
+    total_news_count = 0
+    truncated_stats = []
+    truncated_new_titles = []
+    
+    if max_total_news_in_push > 0:
+        # 统计并截断 stats 中的新闻
+        if show_stats_in_push and report_data["stats"]:
+            for stat in report_data["stats"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = stat["titles"][:remaining]
+                if truncated_titles:
+                    truncated_stats.append({
+                        "word": stat["word"],
+                        "count": len(truncated_titles),
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+        
+        # 统计并截断 new_titles 中的新闻
+        if report_data["new_titles"]:
+            for source_data in report_data["new_titles"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = source_data["titles"][:remaining]
+                if truncated_titles:
+                    truncated_new_titles.append({
+                        "source_name": source_data["source_name"],
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+    else:
+        # 不限制数量，使用原始数据
+        truncated_stats = report_data["stats"] if show_stats_in_push else []
+        truncated_new_titles = report_data["new_titles"]
+
     total_titles = sum(
-        len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
+        len(stat["titles"]) for stat in truncated_stats if stat["count"] > 0
     )
     now = get_time_func() if get_time_func else datetime.now()
 
@@ -166,12 +256,12 @@ def render_dingtalk_content(
 
     # 生成热点词汇统计部分
     stats_content = ""
-    if report_data["stats"]:
+    if show_stats_in_push and truncated_stats:
         stats_content += "📊 **热点词汇统计**\n\n"
 
-        total_count = len(report_data["stats"])
+        total_count = len(truncated_stats)
 
-        for i, stat in enumerate(report_data["stats"]):
+        for i, stat in enumerate(truncated_stats):
             word = stat["word"]
             count = stat["count"]
 
@@ -193,17 +283,21 @@ def render_dingtalk_content(
                 if j < len(stat["titles"]):
                     stats_content += "\n"
 
-            if i < len(report_data["stats"]) - 1:
+            if i < len(truncated_stats) - 1:
                 stats_content += "\n---\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
-    if report_data["new_titles"]:
+    if truncated_new_titles:
+        # 计算实际显示的新闻总数
+        actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
+        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
+        
         new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         )
 
-        for source_data in report_data["new_titles"]:
+        for source_data in truncated_new_titles:
             new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
 
             for j, title_data in enumerate(source_data["titles"], 1):

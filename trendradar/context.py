@@ -360,6 +360,8 @@ class AppContext:
             },
             feishu_separator=self.config.get("FEISHU_MESSAGE_SEPARATOR", "---"),
             reverse_content_order=self.config.get("REVERSE_CONTENT_ORDER", False),
+            max_total_news_in_push=self.config.get("MAX_TOTAL_NEWS_IN_PUSH", 0),
+            show_stats_in_push=self.config.get("SHOW_STATS_IN_PUSH", True),
             get_time_func=self.get_time,
         )
 

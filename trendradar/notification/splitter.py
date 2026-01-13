@@ -29,6 +29,8 @@ def split_content_into_batches(
     batch_sizes: Optional[Dict[str, int]] = None,
     feishu_separator: str = "---",
     reverse_content_order: bool = False,
+    max_total_news_in_push: int = 0,
+    show_stats_in_push: bool = True,
     get_time_func: Optional[Callable[[], datetime]] = None,
 ) -> List[str]:
     """分批处理消息内容，确保词组标题+至少第一条新闻的完整性
@@ -42,6 +44,8 @@ def split_content_into_batches(
         batch_sizes: 批次大小配置字典（可选）
         feishu_separator: 飞书消息分隔符
         reverse_content_order: 是否反转内容顺序（新增在前）
+        max_total_news_in_push: 推送中最大新闻总数（0=不限制）
+        show_stats_in_push: 是否在推送中展示热点词汇统计
         get_time_func: 获取当前时间的函数（可选）
 
     Returns:
@@ -60,10 +64,53 @@ def split_content_into_batches(
         else:
             max_bytes = sizes.get("default", 4000)
 
+    # 限制新闻总数
+    truncated_report_data = report_data.copy()
+    if max_total_news_in_push > 0:
+        total_news_count = 0
+        truncated_stats = []
+        truncated_new_titles = []
+        
+        # 统计并截断 stats 中的新闻
+        if show_stats_in_push and report_data["stats"]:
+            for stat in report_data["stats"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = stat["titles"][:remaining]
+                if truncated_titles:
+                    truncated_stats.append({
+                        "word": stat["word"],
+                        "count": len(truncated_titles),
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+        
+        # 统计并截断 new_titles 中的新闻
+        if report_data["new_titles"]:
+            for source_data in report_data["new_titles"]:
+                if total_news_count >= max_total_news_in_push:
+                    break
+                remaining = max_total_news_in_push - total_news_count
+                truncated_titles = source_data["titles"][:remaining]
+                if truncated_titles:
+                    truncated_new_titles.append({
+                        "source_name": source_data["source_name"],
+                        "titles": truncated_titles
+                    })
+                    total_news_count += len(truncated_titles)
+        
+        truncated_report_data["stats"] = truncated_stats
+        truncated_report_data["new_titles"] = truncated_new_titles
+    else:
+        # 不限制数量，但根据 show_stats_in_push 控制是否显示统计
+        if not show_stats_in_push:
+            truncated_report_data["stats"] = []
+
     batches = []
 
     total_titles = sum(
-        len(stat["titles"]) for stat in report_data["stats"] if stat["count"] > 0
+        len(stat["titles"]) for stat in truncated_report_data["stats"] if stat["count"] > 0
     )
     now = get_time_func() if get_time_func else datetime.now()
 
@@ -111,7 +158,7 @@ def split_content_into_batches(
             base_footer += f"\n_TrendRadar 发现新版本 *{update_info['remote_version']}*，当前 *{update_info['current_version']}_"
 
     stats_header = ""
-    if report_data["stats"]:
+    if truncated_report_data["stats"]:
         if format_type in ("wework", "bark"):
             stats_header = f"📊 **热点词汇统计**\n\n"
         elif format_type == "telegram":
@@ -129,8 +176,8 @@ def split_content_into_batches(
     current_batch_has_content = False
 
     if (
-        not report_data["stats"]
-        and not report_data["new_titles"]
+        not truncated_report_data["stats"]
+        and not truncated_report_data["new_titles"]
         and not report_data["failed_ids"]
     ):
         if mode == "incremental":
@@ -147,10 +194,10 @@ def split_content_into_batches(
     # 定义处理热点词汇统计的函数
     def process_stats_section(current_batch, current_batch_has_content, batches):
         """处理热点词汇统计"""
-        if not report_data["stats"]:
+        if not truncated_report_data["stats"]:
             return current_batch, current_batch_has_content, batches
 
-        total_count = len(report_data["stats"])
+        total_count = len(truncated_report_data["stats"])
 
         # 添加统计标题
         test_content = current_batch + stats_header
@@ -167,7 +214,7 @@ def split_content_into_batches(
             current_batch_has_content = True
 
         # 逐个处理词组（确保词组标题+第一条新闻的原子性）
-        for i, stat in enumerate(report_data["stats"]):
+        for i, stat in enumerate(truncated_report_data["stats"]):
             word = stat["word"]
             count = stat["count"]
             sequence_display = f"[{i + 1}/{total_count}]"
@@ -335,7 +382,7 @@ def split_content_into_batches(
                     current_batch_has_content = True
 
             # 词组间分隔符
-            if i < len(report_data["stats"]) - 1:
+            if i < len(truncated_report_data["stats"]) - 1:
                 separator = ""
                 if format_type in ("wework", "bark"):
                     separator = f"\n\n\n\n"
@@ -362,24 +409,28 @@ def split_content_into_batches(
     # 定义处理新增新闻的函数
     def process_new_titles_section(current_batch, current_batch_has_content, batches):
         """处理新增新闻"""
-        if not report_data["new_titles"]:
+        if not truncated_report_data["new_titles"]:
             return current_batch, current_batch_has_content, batches
+
+        # 计算实际显示的新闻总数
+        actual_new_count = sum(len(s["titles"]) for s in truncated_report_data["new_titles"])
+        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
 
         new_header = ""
         if format_type in ("wework", "bark"):
-            new_header = f"\n\n\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            new_header = f"\n\n\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         elif format_type == "telegram":
             new_header = (
-                f"\n\n🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条)\n\n"
+                f"\n\n🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
             )
         elif format_type == "ntfy":
-            new_header = f"\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            new_header = f"\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         elif format_type == "feishu":
-            new_header = f"\n{feishu_separator}\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            new_header = f"\n{feishu_separator}\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         elif format_type == "dingtalk":
-            new_header = f"\n---\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+            new_header = f"\n---\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
         elif format_type == "slack":
-            new_header = f"\n\n🆕 *本次新增热点新闻* (共 {report_data['total_new_count']} 条)\n\n"
+            new_header = f"\n\n🆕 *本次新增热点新闻* (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
 
         test_content = current_batch + new_header
         if (
@@ -395,7 +446,7 @@ def split_content_into_batches(
             current_batch_has_content = True
 
         # 逐个处理新增新闻来源
-        for source_data in report_data["new_titles"]:
+        for source_data in truncated_report_data["new_titles"]:
             source_header = ""
             if format_type in ("wework", "bark"):
                 source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
