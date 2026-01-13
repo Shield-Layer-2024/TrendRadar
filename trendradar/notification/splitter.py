@@ -64,16 +64,48 @@ def split_content_into_batches(
         else:
             max_bytes = sizes.get("default", 4000)
 
-    # 限制新闻总数
+    # 限制新闻总数并处理显示模式
     truncated_report_data = report_data.copy()
+    
+    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    if not show_stats_in_push and report_data["stats"]:
+        # 收集所有匹配的新闻，按平台分组
+        all_titles_by_platform = {}
+        for stat in report_data["stats"]:
+            for title_data in stat["titles"]:
+                platform = title_data.get("source", "未知平台")
+                if platform not in all_titles_by_platform:
+                    all_titles_by_platform[platform] = []
+                all_titles_by_platform[platform].append(title_data)
+        
+        # 转换为 new_titles 格式（平铺显示）
+        flattened_titles = []
+        for platform, titles in all_titles_by_platform.items():
+            flattened_titles.append({
+                "source_name": platform,
+                "titles": titles
+            })
+        
+        # 清空 stats，将新闻移到 new_titles 中
+        truncated_report_data["stats"] = []
+        # 合并原有的 new_titles
+        if truncated_report_data["new_titles"]:
+            truncated_report_data["new_titles"] = flattened_titles + truncated_report_data["new_titles"]
+        else:
+            truncated_report_data["new_titles"] = flattened_titles
+        # 更新总数
+        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
+        truncated_report_data["total_new_count"] = total_flattened + report_data.get("total_new_count", 0)
+    
+    # 限制新闻总数
     if max_total_news_in_push > 0:
         total_news_count = 0
         truncated_stats = []
         truncated_new_titles = []
         
         # 统计并截断 stats 中的新闻
-        if show_stats_in_push and report_data["stats"]:
-            for stat in report_data["stats"]:
+        if truncated_report_data["stats"]:
+            for stat in truncated_report_data["stats"]:
                 if total_news_count >= max_total_news_in_push:
                     break
                 remaining = max_total_news_in_push - total_news_count
@@ -87,8 +119,8 @@ def split_content_into_batches(
                     total_news_count += len(truncated_titles)
         
         # 统计并截断 new_titles 中的新闻
-        if report_data["new_titles"]:
-            for source_data in report_data["new_titles"]:
+        if truncated_report_data["new_titles"]:
+            for source_data in truncated_report_data["new_titles"]:
                 if total_news_count >= max_total_news_in_push:
                     break
                 remaining = max_total_news_in_push - total_news_count
@@ -102,10 +134,6 @@ def split_content_into_batches(
         
         truncated_report_data["stats"] = truncated_stats
         truncated_report_data["new_titles"] = truncated_new_titles
-    else:
-        # 不限制数量，但根据 show_stats_in_push 控制是否显示统计
-        if not show_stats_in_push:
-            truncated_report_data["stats"] = []
 
     batches = []
 

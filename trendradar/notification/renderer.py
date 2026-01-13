@@ -36,10 +36,42 @@ def render_feishu_content(
     Returns:
         格式化的飞书消息内容
     """
-    # 限制新闻总数
+    # 限制新闻总数并处理显示模式
     total_news_count = 0
     truncated_stats = []
     truncated_new_titles = []
+    original_total_new_count = report_data.get("total_new_count", 0)
+    
+    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    if not show_stats_in_push and report_data["stats"]:
+        # 收集所有匹配的新闻，按平台分组
+        all_titles_by_platform = {}
+        for stat in report_data["stats"]:
+            for title_data in stat["titles"]:
+                platform = title_data.get("source", "未知平台")
+                if platform not in all_titles_by_platform:
+                    all_titles_by_platform[platform] = []
+                all_titles_by_platform[platform].append(title_data)
+        
+        # 转换为平铺格式
+        flattened_titles = []
+        for platform, titles in all_titles_by_platform.items():
+            flattened_titles.append({
+                "source_name": platform,
+                "titles": titles
+            })
+        
+        # 合并到 new_titles
+        if report_data["new_titles"]:
+            all_new_titles = flattened_titles + report_data["new_titles"]
+        else:
+            all_new_titles = flattened_titles
+        
+        # 更新总数
+        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
+        original_total_new_count = total_flattened + report_data.get("total_new_count", 0)
+    else:
+        all_new_titles = report_data["new_titles"]
     
     if max_total_news_in_push > 0:
         # 统计并截断 stats 中的新闻
@@ -58,8 +90,8 @@ def render_feishu_content(
                     total_news_count += len(truncated_titles)
         
         # 统计并截断 new_titles 中的新闻
-        if report_data["new_titles"]:
-            for source_data in report_data["new_titles"]:
+        if all_new_titles:
+            for source_data in all_new_titles:
                 if total_news_count >= max_total_news_in_push:
                     break
                 remaining = max_total_news_in_push - total_news_count
@@ -71,9 +103,9 @@ def render_feishu_content(
                     })
                     total_news_count += len(truncated_titles)
     else:
-        # 不限制数量，使用原始数据
+        # 不限制数量
         truncated_stats = report_data["stats"] if show_stats_in_push else []
-        truncated_new_titles = report_data["new_titles"]
+        truncated_new_titles = all_new_titles
 
     # 生成热点词汇统计部分
     stats_content = ""
@@ -112,10 +144,10 @@ def render_feishu_content(
     if truncated_new_titles:
         # 计算实际显示的新闻总数
         actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
-        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
+        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < original_total_new_count else ""
         
         new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
         )
 
         for source_data in truncated_new_titles:
@@ -204,10 +236,42 @@ def render_dingtalk_content(
     Returns:
         格式化的钉钉消息内容
     """
-    # 限制新闻总数
+    # 限制新闻总数并处理显示模式
     total_news_count = 0
     truncated_stats = []
     truncated_new_titles = []
+    original_total_new_count = report_data.get("total_new_count", 0)
+    
+    # 如果不显示统计分组，将 stats 中的新闻转换为平铺格式
+    if not show_stats_in_push and report_data["stats"]:
+        # 收集所有匹配的新闻，按平台分组
+        all_titles_by_platform = {}
+        for stat in report_data["stats"]:
+            for title_data in stat["titles"]:
+                platform = title_data.get("source", "未知平台")
+                if platform not in all_titles_by_platform:
+                    all_titles_by_platform[platform] = []
+                all_titles_by_platform[platform].append(title_data)
+        
+        # 转换为平铺格式
+        flattened_titles = []
+        for platform, titles in all_titles_by_platform.items():
+            flattened_titles.append({
+                "source_name": platform,
+                "titles": titles
+            })
+        
+        # 合并到 new_titles
+        if report_data["new_titles"]:
+            all_new_titles = flattened_titles + report_data["new_titles"]
+        else:
+            all_new_titles = flattened_titles
+        
+        # 更新总数
+        total_flattened = sum(len(s["titles"]) for s in flattened_titles)
+        original_total_new_count = total_flattened + report_data.get("total_new_count", 0)
+    else:
+        all_new_titles = report_data["new_titles"]
     
     if max_total_news_in_push > 0:
         # 统计并截断 stats 中的新闻
@@ -226,8 +290,8 @@ def render_dingtalk_content(
                     total_news_count += len(truncated_titles)
         
         # 统计并截断 new_titles 中的新闻
-        if report_data["new_titles"]:
-            for source_data in report_data["new_titles"]:
+        if all_new_titles:
+            for source_data in all_new_titles:
                 if total_news_count >= max_total_news_in_push:
                     break
                 remaining = max_total_news_in_push - total_news_count
@@ -239,9 +303,9 @@ def render_dingtalk_content(
                     })
                     total_news_count += len(truncated_titles)
     else:
-        # 不限制数量，使用原始数据
+        # 不限制数量
         truncated_stats = report_data["stats"] if show_stats_in_push else []
-        truncated_new_titles = report_data["new_titles"]
+        truncated_new_titles = all_new_titles
 
     total_titles = sum(
         len(stat["titles"]) for stat in truncated_stats if stat["count"] > 0
@@ -291,10 +355,10 @@ def render_dingtalk_content(
     if truncated_new_titles:
         # 计算实际显示的新闻总数
         actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
-        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
+        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < original_total_new_count else ""
         
         new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
         )
 
         for source_data in truncated_new_titles:
