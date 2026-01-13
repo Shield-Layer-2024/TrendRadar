@@ -131,9 +131,15 @@ def split_content_into_batches(
 
     batches = []
 
+    # 计算总新闻数（包括 stats 和 new_titles）
     total_titles = sum(
         len(stat["titles"]) for stat in truncated_report_data["stats"] if stat["count"] > 0
     )
+    # 如果 stats 为空但有 new_titles，统计 new_titles 的数量
+    if total_titles == 0 and truncated_report_data["new_titles"]:
+        total_titles = sum(
+            len(source["titles"]) for source in truncated_report_data["new_titles"]
+        )
     now = get_time_func() if get_time_func else datetime.now()
 
     base_header = ""
@@ -434,38 +440,45 @@ def split_content_into_batches(
         if not truncated_report_data["new_titles"]:
             return current_batch, current_batch_has_content, batches
 
-        # 计算实际显示的新闻总数
-        actual_new_count = sum(len(s["titles"]) for s in truncated_report_data["new_titles"])
-        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
-
+        # 判断是否为平铺模式（不显示分类标题）
+        is_flat_mode = any(s["source_name"] == "匹配的新闻" for s in truncated_report_data["new_titles"])
+        
         new_header = ""
-        if format_type in ("wework", "bark"):
-            new_header = f"\n\n\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
-        elif format_type == "telegram":
-            new_header = (
-                f"\n\n🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
-            )
-        elif format_type == "ntfy":
-            new_header = f"\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
-        elif format_type == "feishu":
-            new_header = f"\n{feishu_separator}\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
-        elif format_type == "dingtalk":
-            new_header = f"\n---\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
-        elif format_type == "slack":
-            new_header = f"\n\n🆕 *本次新增热点新闻* (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+        # 平铺模式不显示"本次新增热点新闻"标题
+        if not is_flat_mode:
+            # 计算实际显示的新闻总数
+            actual_new_count = sum(len(s["titles"]) for s in truncated_report_data["new_titles"])
+            truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < report_data['total_new_count'] else ""
 
-        test_content = current_batch + new_header
-        if (
-            len(test_content.encode("utf-8")) + len(base_footer.encode("utf-8"))
-            >= max_bytes
-        ):
-            if current_batch_has_content:
-                batches.append(current_batch + base_footer)
-            current_batch = base_header + new_header
-            current_batch_has_content = True
-        else:
-            current_batch = test_content
-            current_batch_has_content = True
+            if format_type in ("wework", "bark"):
+                new_header = f"\n\n\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            elif format_type == "telegram":
+                new_header = (
+                    f"\n\n🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+                )
+            elif format_type == "ntfy":
+                new_header = f"\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            elif format_type == "feishu":
+                new_header = f"\n{feishu_separator}\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            elif format_type == "dingtalk":
+                new_header = f"\n---\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+            elif format_type == "slack":
+                new_header = f"\n\n🆕 *本次新增热点新闻* (共 {report_data['total_new_count']} 条{truncated_hint})\n\n"
+
+        # 只有在非平铺模式下才添加 new_header
+        if new_header:
+            test_content = current_batch + new_header
+            if (
+                len(test_content.encode("utf-8")) + len(base_footer.encode("utf-8"))
+                >= max_bytes
+            ):
+                if current_batch_has_content:
+                    batches.append(current_batch + base_footer)
+                current_batch = base_header + new_header
+                current_batch_has_content = True
+            else:
+                current_batch = test_content
+                current_batch_has_content = True
 
         # 逐个处理新增新闻来源
         for source_data in truncated_report_data["new_titles"]:

@@ -136,27 +136,18 @@ def render_feishu_content(
     # 生成新增新闻部分
     new_titles_content = ""
     if truncated_new_titles:
-        # 计算实际显示的新闻总数
-        actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
-        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < original_total_new_count else ""
-        
-        new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
-        )
-
         # 统计所有新闻的总序号
         total_index = 0
         for source_data in truncated_new_titles:
-            # 如果是平铺模式（不分平台），不显示平台标题
+            # 如果是平铺模式（不分平台），不显示任何标题
             if source_data['source_name'] != "匹配的新闻":
+                # 非平铺模式：显示平台分类标题
                 new_titles_content += (
                     f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
                 )
-                local_index_start = 1
                 indent = "  "
             else:
-                # 平铺模式：不显示平台标题，直接显示新闻
-                local_index_start = total_index + 1
+                # 平铺模式：不显示标题，直接显示新闻
                 indent = ""
 
             for title_data in source_data["titles"]:
@@ -168,7 +159,9 @@ def render_feishu_content(
                 )
                 new_titles_content += f"{indent}{total_index}. {formatted_title}\n"
 
-            new_titles_content += "\n"
+            # 只在非平铺模式下添加换行
+            if source_data['source_name'] != "匹配的新闻":
+                new_titles_content += "\n"
 
     # 根据配置决定内容顺序
     text_content = ""
@@ -352,25 +345,16 @@ def render_dingtalk_content(
     # 生成新增新闻部分
     new_titles_content = ""
     if truncated_new_titles:
-        # 计算实际显示的新闻总数
-        actual_new_count = sum(len(s["titles"]) for s in truncated_new_titles)
-        truncated_hint = f" (已截取前 {actual_new_count} 条)" if max_total_news_in_push > 0 and actual_new_count < original_total_new_count else ""
-        
-        new_titles_content += (
-            f"🆕 **本次新增热点新闻** (共 {original_total_new_count} 条{truncated_hint})\n\n"
-        )
-
         # 统计所有新闻的总序号
         total_index = 0
         for source_data in truncated_new_titles:
-            # 如果是平铺模式（不分平台），不显示平台标题
+            # 如果是平铺模式（不分平台），不显示任何标题
             if source_data['source_name'] != "匹配的新闻":
+                # 非平铺模式：显示平台分类标题
                 new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
-                local_index_start = 1
                 indent = "  "
             else:
-                # 平铺模式：不显示平台标题，直接显示新闻
-                local_index_start = total_index + 1
+                # 平铺模式：不显示标题，直接显示新闻
                 indent = ""
 
             for title_data in source_data["titles"]:
@@ -382,7 +366,9 @@ def render_dingtalk_content(
                 )
                 new_titles_content += f"{indent}{total_index}. {formatted_title}\n"
 
-            new_titles_content += "\n"
+            # 只在非平铺模式下添加换行
+            if source_data['source_name'] != "匹配的新闻":
+                new_titles_content += "\n"
 
     # 根据配置决定内容顺序
     text_content = header_content
